@@ -23,9 +23,7 @@
   --vp-button-brand-active-bg: #a63f13;
   --vp-button-brand-border: transparent;
 
-  /* hero：名字渐变（深橙→链环橙→浅橙）+ 大气渐变底（Mintlify atmospheric wash） */
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(115deg, #a63f13 8%, #e16531 52%, #f4a26b 96%);
+  /* hero：名字纯品牌色（2026-10 主题审核批：字体渐变全站禁用）+ 大气渐变底（Mintlify atmospheric wash） */
   --vp-home-hero-image-background: linear-gradient(135deg, rgba(225, 101, 49, 0.26) 0%, rgba(244, 162, 107, 0.1) 45%, rgba(255, 255, 255, 0) 80%);
   --vp-home-hero-image-filter: blur(56px);
 
@@ -48,7 +46,6 @@
   --vp-button-brand-hover-bg: #e16531;
   --vp-button-brand-active-bg: #f4a26b;
 
-  --vp-home-hero-name-background: linear-gradient(115deg, #f7b98c 8%, #f4a26b 52%, #fcd9bd 96%);
   --vp-home-hero-image-background: linear-gradient(135deg, rgba(225, 101, 49, 0.22) 0%, rgba(244, 162, 107, 0.08) 45%, rgba(0, 0, 0, 0) 80%);
 
   --vp-custom-outline: #f4a26b;
@@ -125,3 +122,10 @@
 .VPDocOutlineItem .outline-link.level-3:hover {
   color: var(--vp-c-brand-1);
 }
+
+/* hero 名用纯品牌色,不用 VitePress 默认渐变名 */
+:root {
+  --vp-home-hero-name-color: var(--vp-c-brand-1);
+  --vp-home-hero-name-background: transparent;
+}
+
