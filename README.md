@@ -1,3 +1,5 @@
+[English](README.md) | [中文](README.zh.md)
+
 <p align="center"><img src="assets/logo.svg" width="110" alt="JsonStream"></p>
 
 <h1 align="center">JsonStream</h1>
@@ -11,21 +13,21 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
-## 简介
+## Overview
 
-JsonStream 是基于 TCP 的自定义二进制帧协议，承载 JSON：一条连接跑请求/响应、流式、双工、单向、发布/订阅五种交互，心跳、断线恢复、压缩加密、credit 背压都在协议内，不靠应用层自造。Go 参考实现纯标准库、零第三方依赖（Go ≥ 1.24，[v0.1.0 发布说明](https://github.com/cuihairu/jsonstream/releases/tag/v0.1.0)）；协议规范语言无关（[docs/protocol.md](docs/protocol.md)，跨语言实现的单一事实源），其他语言实现规划中。
+JsonStream is a TCP-based custom binary framing protocol that carries JSON. A single connection runs five interaction patterns — request/response, streaming, duplex, one-way, and publish/subscribe — while heartbeats, disconnect recovery, compression and encryption, and credit-based backpressure all live inside the protocol, not reinvented at the application layer. The Go reference implementation uses only the standard library, with zero third-party dependencies (Go ≥ 1.24, [v0.1.0 release notes](https://github.com/cuihairu/jsonstream/releases/tag/v0.1.0)); the protocol specification is language-neutral ([docs/protocol.md](docs/protocol.md), the single source of truth for cross-language implementations), and implementations in other languages are planned.
 
-在线文档站随 main 自动发布：<https://cuihairu.github.io/jsonstream/>，最近改动的逐条摘要在[更新日志](https://cuihairu.github.io/jsonstream/changelog)。
+The online documentation site is published automatically from main: <https://cuihairu.github.io/jsonstream/>. Item-by-item summaries of recent changes are in the [changelog](https://cuihairu.github.io/jsonstream/changelog).
 
-## 30 秒上手
+## Quick Start in 30 Seconds
 
-零第三方依赖：
+Zero third-party dependencies:
 
 ```bash
 go get github.com/cuihairu/jsonstream
 ```
 
-一个路由加一次调用：
+One route and one call:
 
 ```go
 ln, _ := net.Listen("tcp", "127.0.0.1:9000")
@@ -45,122 +47,122 @@ var out map[string]int
 _ = m.Decode(&out) // {"sum": 42}
 ```
 
-## 核心特性
+## Core Features
 
-- 一条 TCP 连接跑全部五种交互：请求/响应、流式、双工、单向、发布/订阅；数据帧都带 Stream ID（控制帧除外），多路复用无需协商
-- 心跳在协议内：双向独立 PING/PONG，读空闲超 1.5× 间隔判死——TCP keepalive 探不出进程死锁，所以不用它
-- 断线自动重连（指数退避 + 抖动）；服务端在保留期内重放订阅与下行帧（at-least-once），同会话新连接 takeover 顶替旧连接
-- 压缩（flate）、加密（AES-256-GCM + 32B 预共享密钥）、背压（credit）全部可选：握手协商生效、每帧 Flags 自描述、关闭零运行时代价
-- Metadata 与 Payload 分离：路由/主题恒为明文，网关不解码业务数据即可鉴权、限流、转发
-- 14B 定长头 + 32 位大端长度前缀，单帧载荷上限 16 MiB，解码端先校验长度后分配内存
-- 质量基线：库包语句覆盖 100%（CI 门禁）、五个 fuzz 靶持续冒烟、八件静态检查零告警、五平台交叉编译
+- All five interaction patterns over a single TCP connection: request/response, streaming, duplex, one-way, and publish/subscribe; every data frame carries a Stream ID (control frames excepted), so multiplexing needs no negotiation
+- Heartbeats are part of the protocol: bidirectional, independent PING/PONG; read-idle beyond 1.5× the interval declares the peer dead. TCP keepalive cannot detect a deadlocked process, which is why this protocol does not use it
+- Automatic reconnection (exponential backoff + jitter); the server replays subscriptions and downstream frames within the retention window (at-least-once), and a new connection with the same session takes over from the old one
+- Compression (flate), encryption (AES-256-GCM + 32-byte pre-shared key), and backpressure (credit) are all optional: negotiated at handshake, self-described by per-frame Flags, and zero runtime cost when off
+- Metadata and Payload are separated: route/topic are always plaintext, so a gateway can authenticate, rate-limit, and forward without decoding business data
+- 14-byte fixed header + 32-bit big-endian length prefix; a single frame's payload is capped at 16 MiB, and the decoder validates the length before allocating memory
+- Quality baseline: 100% statement coverage on the library package (CI gate), five fuzz targets under continuous smoke testing, eight static checks with zero findings, and cross-compilation for five platforms
 
-## 快速示例
+## Quick Examples
 
-流式、双工、订阅、单向的逐方法写法见 [docs/api.md](docs/api.md)，五种交互模式的完整走查见 [docs/getting-started.md](docs/getting-started.md)。压缩/加密/背压都是参数化开关，握手协商后生效（双方都开才启用），默认全关、零开销：
+Method-by-method usage of streaming, duplex, subscriptions, and one-way is in [docs/api.md](docs/api.md); a complete walkthrough of the five interaction patterns is in [docs/getting-started.md](docs/getting-started.md). Compression, encryption, and backpressure are parameterized switches that take effect after handshake negotiation (enabled only when both sides opt in); all default to off with zero overhead:
 
 ```go
 cfg := jsonstream.DefaultConfig()
-cfg.Compress = true // ≥64B 载荷走 flate
-cfg.Encrypt = true  // AES-256-GCM，先压后加
-cfg.Key = key32     // 32 字节预共享密钥
-cfg.Credit = 64     // 连接级信用窗口，生效值取双方最小
+cfg.Compress = true // payloads ≥64B go through flate
+cfg.Encrypt = true  // AES-256-GCM; compress first, then encrypt
+cfg.Key = key32     // 32-byte pre-shared key
+cfg.Credit = 64     // connection-level credit window; effective value is the min of both sides
 ```
 
-发起类 API 一律以 `ctx` 打头：`SendOneWay`/`Publish`（Client 与 Server 两侧）与 `Request`/`Stream`/`Channel` 同规，ctx 约束「等可用连接」与「等发送入队」两段等待（DESIGN §8.4）。该签名在首发（v0.1.0）前定版，不为旧签名留别名——旧行为等价于传 `context.Background()`。
+Initiation-style APIs all take a `ctx` first: `SendOneWay`/`Publish` (on both the Client and Server sides) follow the same convention as `Request`/`Stream`/`Channel`; the context bounds two waits — waiting for an available connection and waiting for the send to be enqueued (DESIGN §8.4). This signature was finalized before the initial release (v0.1.0), and no aliases are kept for older signatures — the old behavior is equivalent to passing `context.Background()`.
 
-可运行的端到端程序在 [examples/](examples/)：`examples/server` 与 `examples/client` 覆盖请求/响应、流式取消、双工、单向、发布/订阅、服务端主动发起六类场景。
+Runnable end-to-end programs are in [examples/](examples/): `examples/server` and `examples/client` cover six scenario groups — request/response, streaming cancellation, duplex, one-way, publish/subscribe, and server-initiated interactions.
 
-## 文档站导航
+## Documentation Site Guide
 
-文档站全部页面按你想做的事分流：
+Every page on the documentation site is sorted by what you want to do:
 
-### 使用者：在 Go 应用里直接用库
+### Application developers: using the library directly in a Go app
 
-- 上手：[环境与安装](https://cuihairu.github.io/jsonstream/getting-started#环境与安装)、[第一个请求/响应](https://cuihairu.github.io/jsonstream/getting-started#第一个请求-响应)、[五种交互模式](https://cuihairu.github.io/jsonstream/getting-started#五种交互模式)、[参数化开关](https://cuihairu.github.io/jsonstream/getting-started#参数化开关)
-- 参考：[Client 与 Server 的方法](https://cuihairu.github.io/jsonstream/api#client)、[Config 全字段](https://cuihairu.github.io/jsonstream/api#config)、[错误码](https://cuihairu.github.io/jsonstream/api#错误)、[术语速查](https://cuihairu.github.io/jsonstream/glossary)
-- 排障与性能：[FAQ](https://cuihairu.github.io/jsonstream/faq)、[基准实测](https://cuihairu.github.io/jsonstream/benchmarks)（[开销逐项解读](https://cuihairu.github.io/jsonstream/benchmarks#逐项解读-开销主要在哪)）
+- Getting started: [Environment and installation](https://cuihairu.github.io/jsonstream/getting-started#环境与安装), [First request/response](https://cuihairu.github.io/jsonstream/getting-started#第一个请求-响应), [The five interaction patterns](https://cuihairu.github.io/jsonstream/getting-started#五种交互模式), [Parameterized switches](https://cuihairu.github.io/jsonstream/getting-started#参数化开关)
+- Reference: [Client and Server methods](https://cuihairu.github.io/jsonstream/api#client), [All Config fields](https://cuihairu.github.io/jsonstream/api#config), [Error codes](https://cuihairu.github.io/jsonstream/api#错误), [Glossary](https://cuihairu.github.io/jsonstream/glossary)
+- Troubleshooting and performance: [FAQ](https://cuihairu.github.io/jsonstream/faq), [Measured benchmarks](https://cuihairu.github.io/jsonstream/benchmarks) ([Where the overhead goes, item by item](https://cuihairu.github.io/jsonstream/benchmarks#逐项解读-开销主要在哪))
 
-### SDK 作者：网关、代理与上层封装
+### SDK authors: gateways, proxies, and higher-level wrappers
 
-- [帧层（低层）](https://cuihairu.github.io/jsonstream/api#帧层-低层)：绕过交互语义直接收发帧
-- [Metadata 与 Payload 分离](https://cuihairu.github.io/jsonstream/protocol#_5-metadata-与-payload)：路由/主题对中间件可读，不解密 payload 即可路由
-- [握手协商](https://cuihairu.github.io/jsonstream/protocol#_6-1-协商)与[背压（credit）](https://cuihairu.github.io/jsonstream/protocol#_7-9-背压-可选-credit-based)：网关透传与限流要处理的语义
-- [并发模型速览](https://cuihairu.github.io/jsonstream/api#并发模型速览)：哪些方法可多 goroutine 并发调用
+- [Frame layer (low level)](https://cuihairu.github.io/jsonstream/api#帧层-低层): send and receive frames directly, bypassing interaction semantics
+- [Metadata/Payload separation](https://cuihairu.github.io/jsonstream/protocol#_5-metadata-与-payload): route/topic are readable by middleware, so routing works without decrypting the payload
+- [Handshake negotiation](https://cuihairu.github.io/jsonstream/protocol#_6-1-协商) and [backpressure (credit)](https://cuihairu.github.io/jsonstream/protocol#_7-9-背压-可选-credit-based): the semantics a gateway must handle for pass-through and rate limiting
+- [Concurrency model at a glance](https://cuihairu.github.io/jsonstream/api#并发模型速览): which methods may be called concurrently from multiple goroutines
 
-### 协议实现者：在其他语言复刻本协议
+### Protocol implementers: reimplementing the protocol in other languages
 
-- [协议规范 v1](https://cuihairu.github.io/jsonstream/protocol) 是单一事实源，只拿这一份就应能写出可互通的实现：[帧布局](https://cuihairu.github.io/jsonstream/protocol#_3-1-布局-大端序)、[帧类型](https://cuihairu.github.io/jsonstream/protocol#_4-帧类型)、[握手](https://cuihairu.github.io/jsonstream/protocol#_7-1-握手)、[断线重连恢复](https://cuihairu.github.io/jsonstream/protocol#_8-断线重连恢复)、[分片传输](https://cuihairu.github.io/jsonstream/protocol#_3-4-分片传输-大消息)
-- Go 参考实现的取舍与边界：[架构与取舍](https://cuihairu.github.io/jsonstream/DESIGN)（[边界情况清单](https://cuihairu.github.io/jsonstream/DESIGN#_8-边界情况清单)、[设计决策清单](https://cuihairu.github.io/jsonstream/DESIGN#_10-设计决策清单-备选方案与放弃理由)）、[设计笔记](https://cuihairu.github.io/jsonstream/design-notes)、[知识点梳理](https://cuihairu.github.io/jsonstream/NOTES)
-- 横向对照与题面：[与 WebSocket 对照](https://cuihairu.github.io/jsonstream/websocket-comparison)、[TCP 流特性与协议横评](https://cuihairu.github.io/jsonstream/tcp-and-landscape)、[题目要求](https://cuihairu.github.io/jsonstream/interview-requirements)
+- The [protocol specification v1](https://cuihairu.github.io/jsonstream/protocol) is the single source of truth; from this one document you should be able to write an interoperable implementation: [frame layout](https://cuihairu.github.io/jsonstream/protocol#_3-1-布局-大端序), [frame types](https://cuihairu.github.io/jsonstream/protocol#_4-帧类型), [handshake](https://cuihairu.github.io/jsonstream/protocol#_7-1-握手), [disconnect recovery](https://cuihairu.github.io/jsonstream/protocol#_8-断线重连恢复), [fragmented transfer](https://cuihairu.github.io/jsonstream/protocol#_3-4-分片传输-大消息)
+- Trade-offs and boundaries of the Go reference implementation: [Architecture and trade-offs](https://cuihairu.github.io/jsonstream/DESIGN) ([Edge-case inventory](https://cuihairu.github.io/jsonstream/DESIGN#_8-边界情况清单), [Design decision log](https://cuihairu.github.io/jsonstream/DESIGN#_10-设计决策清单-备选方案与放弃理由)), [Design notes](https://cuihairu.github.io/jsonstream/design-notes), [Knowledge notes](https://cuihairu.github.io/jsonstream/NOTES)
+- Comparisons and the original problem statement: [Comparison with WebSocket](https://cuihairu.github.io/jsonstream/websocket-comparison), [TCP stream characteristics and protocol landscape](https://cuihairu.github.io/jsonstream/tcp-and-landscape), [Assignment requirements](https://cuihairu.github.io/jsonstream/interview-requirements)
 
-## 性能基准摘要
+## Benchmark Summary
 
-下列数字摘自 [bench_test.go](bench_test.go) 九个基准中的七靶（`go test -run '^$' -bench . -benchmem -count=10 -benchtime=1s`，i9-10880H / Go 1.27.1，2026-10-01 轻载窗口，量级参考；压+加与加密端到端两靶未列，全量 9 靶见下文）：
+The numbers below are drawn from seven of the nine benchmarks in [bench_test.go](bench_test.go) (`go test -run '^$' -bench . -benchmem -count=10 -benchtime=1s`, i9-10880H / Go 1.27.1, the low-load window of 2026-10-01, as order-of-magnitude references; the compress+encrypt and encrypted end-to-end targets are not listed — all 9 targets appear below):
 
-| 基准（bench_test.go） | 结果 |
+| Benchmark (bench_test.go) | Result |
 |---|---|
 | `BenchmarkFrameRoundTrip64B` / `1KiB` / `64KiB` | ~0.6µs / ~1.8µs / ~33µs |
-| `BenchmarkTransformPlain` / `Encrypt` / `Compress`（~1.3KiB JSON） | ~14ns / ~7.7µs / ~27µs |
-| `BenchmarkRequestResponsePlain`（本机回环 RTT） | ~0.12ms |
+| `BenchmarkTransformPlain` / `Encrypt` / `Compress` (~1.3KiB JSON) | ~14ns / ~7.7µs / ~27µs |
+| `BenchmarkRequestResponsePlain` (loopback RTT on one machine) | ~0.12ms |
 
-跨机器只比相对关系不比绝对值：本表与 [docs/benchmarks.md](docs/benchmarks.md) 的 9 靶 × 10 轮 benchstat 聚合版同源（同一次 2026-10-01 实跑，两处口径各自注记），该页另保留 2026-09-28 高负载窗口的同套数字作对照（同靶相差 3.5~8.5× 属实测范围）；共享容器里 ns/op 浮动明显，可复现的是 allocs/op 与 B/op 这类结构性性质。压缩路径按帧复用 flate 编解码器（`sync.Pool` + `Reset`），池化后压缩往返 4.1 倍提速、分配降 162 倍（DESIGN §10-D11）。
+Across machines, compare relative relationships, not absolute values. This table and the 9-target × 10-round benchstat aggregate in [docs/benchmarks.md](docs/benchmarks.md) come from the same source (the same 2026-10-01 run, with methodology notes kept separately on each page); that page also retains the same set of numbers from the high-load window of 2026-09-28 for reference (same-target differences of 3.5~8.5× fall within the measured range). ns/op fluctuates noticeably on the shared container; what reproduces reliably are structural properties such as allocs/op and B/op. The compression path reuses flate coders per frame (`sync.Pool` + `Reset`); pooling made compression round trips 4.1× faster and cut allocations 162× (DESIGN §10-D11).
 
-质量与验证口径：库包语句覆盖 100.0%（CI 门禁跌破即失败；语句计数随 Go 工具链版本不同——1.24 与 stable 两腿实测均为 100.0%，故只记百分比不记分母，两个示例包同为 100.0%）；Codecov 徽章显示 100%（`codecv.yml` 行覆盖目标 99%，当前 ≈99.85% 四舍五入），不红 CI（`fail_ci_if_error: false`，与语句 100% 门禁解耦）；212 个测试/基准/fuzz 函数；`-race -count=1` 全绿（CI 门禁同款）加 goroutine 泄漏守卫；五条 fuzz 靶 CI 冒烟（长跑累计千万级 execs，实锤修复「测试里抓到的真 bug」一节的第 1、2 条）；八件静态检查（vet/gofmt/gosec/revive/staticcheck/gocritic/nilness/govulncheck）与五平台交叉编译全部落成 CI 门禁。方法学与逐项数据见 [docs/DESIGN.md](docs/DESIGN.md) §11，本地复现命令见下文「贡献指引」。
+Quality and verification figures: statement coverage of the library package is 100.0% (the CI gate fails if it drops; statement counts vary with the Go toolchain version — both the 1.24 and stable legs measured 100.0%, so only the percentage is recorded without the denominator; both example packages are also at 100.0%). The Codecov badge shows 100% (`codecv.yml` sets the line-coverage target at 99%, currently ≈99.85% before rounding), and it does not redden CI (`fail_ci_if_error: false`, decoupled from the 100% statement-coverage gate). 212 test/benchmark/fuzz functions. `-race -count=1` is fully green (the same configuration as the CI gate) plus a goroutine-leak guard. Five fuzz targets run as CI smoke tests (long runs have accumulated execs on the order of ten million, confirming the fixes for items 1 and 2 in the "Real bugs caught by testing" section below). Eight static checks (vet/gofmt/gosec/revive/staticcheck/gocritic/nilness/govulncheck) and five-platform cross-compilation are all enforced as CI gates. Methodology and item-by-item data: [docs/DESIGN.md](docs/DESIGN.md) §11; commands to reproduce locally are under "Contributing" below.
 
-## 贡献指引
+## Contributing
 
-issue 与 PR 都欢迎；合入前请让本地验证与 CI 同绿（本仓库无 CONTRIBUTING.md，本节即贡献约定）。
+Issues and PRs are welcome; before merging, please make local verification and CI green together (this repository has no CONTRIBUTING.md; this section is the contribution agreement).
 
-### 本地验证
+### Local Verification
 
 ```bash
 git clone https://github.com/cuihairu/jsonstream.git
 cd jsonstream
 
-# 构建 + 全量测试 + 静态检查
+# Build + full tests + static checks
 go build ./...
 go test ./...
 go vet ./...
 
-# 覆盖率：库包 100.0%（CI 门禁），examples/server 100.0%，examples/client 100.0%
+# Coverage: library package 100.0% (CI gate), examples/server 100.0%, examples/client 100.0%
 go test -cover ./...
 
-# 性能基准
+# Benchmarks
 go test -bench . -benchtime 2s
 
-# fuzz 冒烟（CI 同款：逐包自动发现全部靶，每靶 20s）
+# Fuzz smoke tests (same as CI: auto-discover every target per package, 20s each)
 for pkg in $(go list ./...); do
   for t in $(go test -list 'Fuzz.*' "$pkg" | grep '^Fuzz'); do
     go test -run '^$' -fuzz "^${t}$" -fuzztime 20s "$pkg"
   done
 done
 
-# fuzz 深挖单靶（注意 -fuzz 只接受单个包，./... 会报错）
+# Deep-dive a single fuzz target (note: -fuzz accepts only a single package; ./... errors out)
 go test -run '^$' -fuzz FuzzReadFrame -fuzztime 300s .
 
-# 端到端示例：终端 1 启动服务端
+# End-to-end example: start the server in terminal 1
 go run ./examples/server
-# 终端 2 运行客户端（请求/响应、流式取消、双工、单向、发布/订阅、服务端主动发起）
+# Run the client in terminal 2 (request/response, streaming cancellation, duplex, one-way, publish/subscribe, server-initiated)
 go run ./examples/client
 ```
 
-### 文档站开发
+### Documentation Site Development
 
 ```bash
-pnpm install      # 首次；Node 22 / pnpm 12
-pnpm dev          # 本地开发，http://localhost:5173
-pnpm build        # 构建到 docs/.vitepress/dist，自带死链检查
-pnpm check:links  # 内链大小写与跨页锚点、外链真实 HEAD 探测
+pnpm install      # first run; Node 22 / pnpm 12
+pnpm dev          # local development, http://localhost:5173
+pnpm build        # builds into docs/.vitepress/dist, with built-in dead-link checks
+pnpm check:links  # internal-link casing and cross-page anchors; real HEAD probes for external links
 ```
 
-### CI 与发布
+### CI and Publishing
 
-推送触发两个 workflow：[ci](https://github.com/cuihairu/jsonstream/actions/workflows/ci.yml)（构建 + 全量测试 + fuzz 冒烟 + 覆盖率门禁）与 [pages](https://github.com/cuihairu/jsonstream/actions/workflows/pages.yml)（文档站构建与发布）。改文档的 PR 绿了不代表线上已更新——pages 的 deploy 只在合入 main 后执行，连续推送还会在部署队列里串行排队；三个易踩坑的细节见 [docs/faq.md](docs/faq.md)。门禁口径（覆盖率 100%、fuzz、静态检查）的逐项含义见上文「性能基准摘要」末段与 [docs/DESIGN.md](docs/DESIGN.md) §11。
+Pushes trigger two workflows: [ci](https://github.com/cuihairu/jsonstream/actions/workflows/ci.yml) (build + full tests + fuzz smoke + coverage gate) and [pages](https://github.com/cuihairu/jsonstream/actions/workflows/pages.yml) (documentation site build and publishing). A green PR that changes docs does not mean the live site is updated — the pages deploy runs only after merging into main, and consecutive pushes queue up serially in the deploy pipeline; three easy-to-trip-over details are in [docs/faq.md](docs/faq.md). The meaning of each gate (100% coverage, fuzz, static checks) is covered in the last paragraph of "Benchmark Summary" above and in [docs/DESIGN.md](docs/DESIGN.md) §11.
 
-## 协议与帧格式
+## Protocol and Frame Format
 
-帧格式规范（逐字段、逐帧型）以 [docs/protocol.md](docs/protocol.md) 为准，本节是导读。
+The frame-format specification (field by field, frame type by frame type) is authoritative at [docs/protocol.md](docs/protocol.md); this section is a guided tour.
 
 ```
  0               8               16              24              32
@@ -171,95 +173,95 @@ pnpm check:links  # 内链大小写与跨页锚点、外链真实 HEAD 探测
  +---------------+---------------+---------------+---------------+
  |                        Payload Length                          |
  +---------------+---------------+---------------+---------------+
- |   Meta Length (2B, Flags.HasMeta 时) | Metadata (JSON, 路由/主题) |
+ |   Meta Length (2B, if Flags.HasMeta) | Metadata (JSON, route/topic) |
  +---------------------------------------------------------------+
  |                     Payload (JSON)                             |
  +---------------------------------------------------------------+
 ```
 
-TCP 是字节流没有消息边界，分帧手段无非三种：定长、分隔符、长度前缀。JSON 里有分隔符歧义，所以选 14B 定长头 + 32 位大端长度前缀：解码端「读完头 → 两次 `ReadFull`」是无条件操作，没有跨帧状态机，可以单测、可以 fuzz、可以在任意位置丢帧重入。Magic 给误连/端口探测一个立即判废的机会，Version 给握手期快速失败的依据；Flags 保留位必须为 0，见到非零按 Malformed 断开，给未来升级留门。
+TCP is a byte stream with no message boundaries, and framing options come down to three kinds: fixed length, delimiters, and length prefixes. JSON makes delimiters ambiguous, so this protocol uses a 14-byte fixed header + 32-bit big-endian length prefix: on the decoding side, "read the header → two `ReadFull` calls" is an unconditional operation with no cross-frame state machine — it can be unit-tested, fuzzed, and re-entered after dropping a frame at any position. Magic gives misconnections and port probes an immediate verdict; Version gives the handshake a basis for failing fast. The reserved bits of Flags must be zero; a nonzero value is treated as Malformed and the connection is closed, leaving the door open for future upgrades.
 
-对 WebSocket（RFC 6455 §5.2）帧格式做了两处减法、一处换形（逐点依据见 [docs/design-notes.md](docs/design-notes.md) §1）：
+Against the WebSocket (RFC 6455 §5.2) frame format, two things are dropped and one is reshaped (point-by-point rationale in [docs/design-notes.md](docs/design-notes.md) §1):
 
-- 分片换形，不做 FIN+continuation：16 MiB 单帧上限管住单帧内存；更大的逻辑消息拆成连续 chunk——开帧保留原类型并置 `FlagFragmented`，续段/收尾用独立 `FRAGMENT` 帧型，运行不可穿插故接收端免块序号，重组总量以 `MaxMessageSize`（默认 64 MiB）为硬帽（[protocol §3.4](docs/protocol.md)；规范已定稿，Go 参考实现落地中）。
-- 不做客户端掩码：MASK 防的是浏览器时代的代理缓存投毒，专用客户端/服务端直连没有这个威胁模型。
-- 不做 7/16/64 位变长长度：变长编码多数帧省 2~6 字节，换来解码端的分支状态机；固定 4B 长度的上限同时是内存闸门（先校验后分配，OOM 开关不在对端手里）。
+- Fragmentation is reshaped, not done as FIN+continuation: the 16 MiB single-frame cap bounds per-frame memory; larger logical messages are split into consecutive chunks — the opening frame keeps its original type and sets `FlagFragmented`, and continuation/closing chunks use a separate `FRAGMENT` frame type. Runs cannot interleave, so the receiver needs no chunk sequence numbers, and the reassembly total is hard-capped by `MaxMessageSize` (default 64 MiB) ([protocol §3.4](docs/protocol.md); the spec is finalized and the Go reference implementation is in progress).
+- No client masking: MASK defends against proxy cache poisoning from the browser era; dedicated client/server direct connections do not have that threat model.
+- No 7/16/64-bit variable-length sizes: variable-length encoding saves 2~6 bytes on most frames at the price of a branching state machine in the decoder; the fixed 4-byte length's ceiling doubles as a memory gate (validate first, allocate second — the OOM switch is not in the peer's hands).
 
-### 交互模型
+### Interaction Model
 
-四种交互原语照 RSocket 的划分：`REQUEST→RESPONSE`（一问一答）、`REQUEST+Flags.Stream→N×RESPONSE+COMPLETE`（流式）、`ONEWAY`（单向，连错误都不回）、`REQUEST+Flags.Channel`（双向多帧）。每帧必带 Stream ID（控制帧除外），按发起方分奇偶（客户端奇数、服务端偶数，HTTP/2 同思路），不用协商就知道帧的归属，两端计数器跨重连单调递增。
+The four interaction primitives follow RSocket's division: `REQUEST→RESPONSE` (one question, one answer), `REQUEST+Flags.Stream→N×RESPONSE+COMPLETE` (streaming), `ONEWAY` (one-way; not even an error comes back), and `REQUEST+Flags.Channel` (bidirectional multi-frame). Every frame carries a Stream ID (control frames excepted), split odd/even by initiator (client odd, server even — the same idea as HTTP/2), so frame ownership is known without negotiation, and the counters on both ends increase monotonically across reconnections.
 
-两个值得知道的细节：请求/响应不追加 COMPLETE 帧——响应帧自带终结语义，一次交互少一个往返；CANCEL 是流的一部分——背压管「生产快于消费」，CANCEL 管「消费者根本不要了」。与 RSocket 的分歧在一个点：它把三种请求拆成三个帧类型，这里用一个 `REQUEST` 加 Flags.Stream/Flags.Channel 位表达，解析分支更克制；代价是中间件只看帧头无法预判交互模式，v1 以「Flags 声明与 handler 不一致回 ERROR(PROTOCOL)」兜底（[design-notes §2](docs/design-notes.md)）。
+Two details worth knowing: request/response does not append a COMPLETE frame — the response frame carries finality by itself, saving one round trip per interaction; CANCEL is part of the stream — backpressure handles "producing faster than consuming", CANCEL handles "the consumer does not want it at all". The divergence from RSocket is one point: it splits three request kinds into three frame types, while here one `REQUEST` plus the Flags.Stream/Flags.Channel bits expresses them, keeping parse branches leaner; the cost is that middleware cannot predict the interaction pattern from the frame header alone, and v1 falls back to replying ERROR(PROTOCOL) when the Flags declaration contradicts the handler ([design-notes §2](docs/design-notes.md)).
 
-### 其余机制速览
+### Other Mechanisms at a Glance
 
-- Metadata 与 Payload 分离：`route`/`topic` 在帧头 Metadata 段、恒为明文，网关不解码 payload 即可鉴权、限流、路由；代价是路由可被链路旁路统计（[design-notes §4](docs/design-notes.md)）。
-- 心跳：应用层 PING/PONG 双向独立发送，读空闲超 1.5× 间隔判死；1.5× 是容忍一次丢帧抖动与判死速度的折中（[protocol §7.2](docs/protocol.md)）。
-- 断线恢复：CONNECT 携带 `session_id`，服务端在保留期内（默认 30s、每会话 4 MiB 上限）重放订阅与下行帧（at-least-once），同会话新连接 takeover 顶替旧连接；边界写进规范——TCP 在途帧不保证重放（非幂等操作靠业务 ID 兜底）、上行不缓存（[protocol §8](docs/protocol.md)）。
-- 压缩与加密：每帧 Flags 自描述是否压缩/加密，心跳帧恒明文、大帧才压缩，单连接内混合存在；顺序冻结为先压后加（密文不可压）；AES-256-GCM + 32B PSK，PSK 不解决密钥分发，生产上外层套 TLS（[protocol §6](docs/protocol.md)、[design-notes §3](docs/design-notes.md)）。
-- 背压：credit 按条数授权、交付后归还，默认关闭——额度归零时 `Emit()` 阻塞，是全协议唯一反向影响应用并发模型的机制；请求/响应与 ONEWAY 不纳入 credit（[design-notes §5](docs/design-notes.md)）。
-- pub/sub 与 req/res 同连接混用：同一 PUBLISH 帧类型两个方向语义对偶；订阅建立失败回 ERROR、投递失败不回帧的不对称是刻意的，已写进规范（[design-notes §6](docs/design-notes.md)）。
+- Metadata/Payload separation: `route`/`topic` live in the frame-header Metadata section and are always plaintext, so gateways can authenticate, rate-limit, and route without decoding the payload; the cost is that routes can be profiled statistically by anything on the path ([design-notes §4](docs/design-notes.md)).
+- Heartbeats: application-layer PING/PONG sent independently in both directions; read-idle beyond 1.5× the interval declares death. 1.5× is the compromise between tolerating one dropped-frame jitter and detecting death quickly ([protocol §7.2](docs/protocol.md)).
+- Disconnect recovery: CONNECT carries a `session_id`; the server replays subscriptions and downstream frames within the retention window (default 30s, 4 MiB per-session cap) with at-least-once semantics, and a new connection with the same session takes over from the old one. The boundaries are written into the spec — TCP frames in flight are not guaranteed replay (non-idempotent operations rely on business IDs as a backstop), and upstream traffic is not cached ([protocol §8](docs/protocol.md)).
+- Compression and encryption: per-frame Flags self-describe whether compression/encryption is applied; heartbeat frames are always plaintext and only large frames are compressed, so both coexist on one connection. The order is frozen as compress-then-encrypt (ciphertext does not compress); AES-256-GCM + 32-byte PSK. A PSK does not solve key distribution — in production, wrap TLS around it ([protocol §6](docs/protocol.md), [design-notes §3](docs/design-notes.md)).
+- Backpressure: credit is granted per message and returned on delivery, off by default — when the allowance reaches zero, `Emit()` blocks; this is the only mechanism in the protocol that pushes back on the application's concurrency model. Request/response and ONEWAY are excluded from credit ([design-notes §5](docs/design-notes.md)).
+- pub/sub and req/res share one connection: the same PUBLISH frame type carries dual semantics in the two directions; the asymmetry — a failed subscription answers ERROR while a failed delivery answers no frame — is deliberate and written into the spec ([design-notes §6](docs/design-notes.md)).
 
-### 测试里抓到的真 bug：不这么设计的后果实证
+### Real Bugs Caught in Testing: Concrete Consequences of Not Designing This Way
 
-实测后自己踩到又修掉的 9 个真缺陷——每一个都是一条设计教训：
+Nine real defects hit in practice and fixed along the way — each one a design lesson:
 
-1. **解压炸弹**（fuzz 抓到）：解压结果不设上限，单帧 16 MiB 的 flate 数据能膨胀三个数量级——不防等于把 OOM 开关交给对端。
-2. **编码不自洽**（fuzz 抓到）：Flags 声明带 Metadata 但内容为空时跳过 metaLen 段，解析-编码不再是互逆——序列化必须满足 round-trip 恒等。
-3. **credit 破坏 at-least-once**：断连后取额度立即失败，handler 误判退出、保留队列变空，重放丢了——连接级流控泄漏进了会话级恢复语义，修复为失败改道保留队列。
-4. **死连接上的 select 双就绪**：发送通道有空位时 `select` 随机选中已死分支，帧静默丢失——Go 的 select 随机性在错误路径上是真陷阱。
-5. **Stream ID 撞号**：重连后 ID 计数器归零，新流与迁移流同 ID，旧流迟到的 COMPLETE 误杀新流——多路复用加恢复，ID 必须跨重连单调。
-6. **陈旧连接引用**：订阅句柄持有创建时的 endpoint，重连后退订帧发给死连接被静默吞——出站一律取当前 endpoint，让编译器消灭陈旧引用。
-7. **responder 流不迁移**：服务端被动流的 handler 在重连后悬空白产帧，能把保留队列撑爆——会话迁移必须连 handler 一起搬。
-8. **断连后悬挂**：服务端主动发起的交互在连接死亡后永久挂起等待一个必然不会来的响应——响应是上行、不缓存，等待无意义，断连即败。
-9. **元数据上限 off-by-one**（gosec 抓到）：上限写成 64 KiB 整，但长度字段是 uint16——恰 64 KiB 会静默截断成 0 编出错乱帧。上界必须等于字段可表达的值，不是顺手的整数。
+1. **Decompression bomb** (caught by fuzzing): with no cap on decompression output, a single 16 MiB flate frame can expand by three orders of magnitude — not guarding this hands the OOM switch to the peer.
+2. **Encoding not self-consistent** (caught by fuzzing): when Flags declared Metadata with empty content, the metaLen section was skipped and parse-encode stopped being inverses — serialization must satisfy round-trip identity.
+3. **Credit broke at-least-once**: after a disconnect, acquiring credit failed immediately, handlers misjudged it and exited, the retention queue emptied, and replays were lost — connection-level flow control leaked into session-level recovery semantics; fixed by routing such failures into the retention queue.
+4. **Double-ready select on a dead connection**: when the send channel had room, `select` randomly picked the dead branch and frames were silently lost — Go's select randomness is a real trap on error paths.
+5. **Stream ID collision**: after reconnection the ID counter reset to zero, so new streams and migrated streams shared IDs, and a late COMPLETE from an old stream killed a new one — with multiplexing plus recovery, IDs must be monotonic across reconnections.
+6. **Stale connection references**: subscription handles held the endpoint from creation time, so after reconnection, unsubscribe frames went to the dead connection and were silently swallowed — outbound traffic always takes the current endpoint, letting the compiler eliminate stale references.
+7. **Responder streams did not migrate**: handlers of server-passive streams dangled after reconnection, producing frames into the void and able to burst the retention queue — session migration must move the handlers along with everything else.
+8. **Hanging after disconnect**: server-initiated interactions hung forever after the connection died, waiting for a response that would never come — responses are upstream and not cached, so waiting is pointless; a disconnect is an immediate failure.
+9. **Metadata limit off-by-one** (caught by gosec): the limit was coded as a round 64 KiB, but the length field is a uint16 — exactly 64 KiB would silently truncate to 0 and encode a garbled frame. A bound must equal what the field can express, not a convenient round number.
 
-## 配置参考
+## Configuration Reference
 
-`Config` 是值类型：传入 `Dial`/`NewServer` 之后再修改原变量不影响已建立的端。生效值以 CONNACK 下发的为准（服务端是权威）；`DefaultConfig()` 返回推荐的完整默认值。逐字段 API 细节见 [docs/api.md](docs/api.md)。
+`Config` is a value type: modifying the original variable after passing it to `Dial`/`NewServer` does not affect an established endpoint. The effective values are those delivered in CONNACK (the server is authoritative); `DefaultConfig()` returns the recommended full defaults. Field-by-field API details are in [docs/api.md](docs/api.md).
 
-| 字段 | 类型 | 默认 | 语义 |
+| Field | Type | Default | Semantics |
 | --- | --- | --- | --- |
-| `Heartbeat` | `time.Duration` | `DefaultHeartbeat`（10s） | PING 间隔；读空闲超 1.5× 判死。零值取默认，低于 1s 钳到 1s |
-| `Compress` | `bool` | `false` | flate 压缩（载荷 ≥64B 才实际压缩） |
-| `Encrypt` | `bool` | `false` | AES-256-GCM；启用时 `Key` 必须是 32 字节 |
-| `Key` | `[]byte` | `nil` | 32 字节预共享密钥，不上线传输 |
-| `Credit` | `int` | `0`（关闭） | 连接级信用窗口（条数）；生效值 = min(双方配置)，任一方 ≤0 关闭 |
-| `Auth` | `string` | `""` | 透传到 CONNECT 的令牌，服务端在 `OnAuth` 中校验 |
-| `Retention` | `time.Duration` | `DefaultRetention`（30s） | 服务端会话保留期；负值禁用会话恢复 |
-| `RetentionBytes` | `int` | `DefaultRetentionBytes`（4 MiB） | 每会话下行保留队列字节上限，超限失去恢复资格 |
-| `DialTimeout` | `time.Duration` | `DefaultDialTimeout`（5s） | 建立 TCP 连接的超时 |
-| `Reconnect` | `*bool` | `nil`（= true） | false 时客户端不自动重连 |
-| `BackoffInitial` | `time.Duration` | `DefaultBackoffInitial`（100ms） | 重连退避起点（指数 + 抖动） |
-| `BackoffMax` | `time.Duration` | `DefaultBackoffMax`（5s） | 重连退避上限 |
-| `Logger` | `Logger` | `nil`（静默） | 适配 `*log.Logger` 等常见实现 |
+| `Heartbeat` | `time.Duration` | `DefaultHeartbeat` (10s) | PING interval; read-idle beyond 1.5× declares death. Zero takes the default; values below 1s clamp to 1s |
+| `Compress` | `bool` | `false` | flate compression (only payloads ≥64B actually compress) |
+| `Encrypt` | `bool` | `false` | AES-256-GCM; when enabled, `Key` must be 32 bytes |
+| `Key` | `[]byte` | `nil` | 32-byte pre-shared key, never sent over the wire |
+| `Credit` | `int` | `0` (off) | Connection-level credit window (message count); effective value = min of both sides; ≤0 on either side turns it off |
+| `Auth` | `string` | `""` | Token passed through in CONNECT; the server validates it in `OnAuth` |
+| `Retention` | `time.Duration` | `DefaultRetention` (30s) | Server-side session retention window; a negative value disables session recovery |
+| `RetentionBytes` | `int` | `DefaultRetentionBytes` (4 MiB) | Per-session byte cap on the downstream retention queue; exceeding it forfeits recovery |
+| `DialTimeout` | `time.Duration` | `DefaultDialTimeout` (5s) | Timeout for establishing the TCP connection |
+| `Reconnect` | `*bool` | `nil` (= true) | When false, the client does not auto-reconnect |
+| `BackoffInitial` | `time.Duration` | `DefaultBackoffInitial` (100ms) | Reconnect backoff starting point (exponential + jitter) |
+| `BackoffMax` | `time.Duration` | `DefaultBackoffMax` (5s) | Reconnect backoff ceiling |
+| `Logger` | `Logger` | `nil` (silent) | Adapts common implementations such as `*log.Logger` |
 
 ```go
 type Logger interface{ Printf(format string, v ...any) }
 ```
 
-## 生态位对比
+## Ecosystem Positioning
 
-一句话定位：后端服务间通信拿 WebSocket 的分帧、RSocket 的交互模型、MQTT 的会话语义，各取一截。与 WebSocket（RFC 6455）的能力边界：
+One-sentence positioning: for backend service-to-service communication, take WebSocket's framing, RSocket's interaction model, and MQTT's session semantics — a slice from each. Capability boundaries versus WebSocket (RFC 6455):
 
-- WS 有、本协议没有或显式不做：浏览器原生可达、TLS 一等承载与 443 复用、子协议/扩展协商、文本/二进制 opcode 区分（客户端 Masking 明确不需要，raw TCP 直连没有那个威胁模型）。
-- WS 标准没有、本协议内建：请求/响应、发布/订阅、流式、credit 背压、断线恢复、Stream ID 多路复用——这些在 WS 应用里都要自造。
-- 逐条依据（协议章节与代码位置）见 [docs/websocket-comparison.md](docs/websocket-comparison.md)；更宽的协议横评（MQTT / RSocket / HTTP/1.1→HTTP/2→HTTP/3 与汇总对比表）见 [docs/tcp-and-landscape.md](docs/tcp-and-landscape.md)。
+- What WS has that this protocol lacks or explicitly does not do: native browser reachability, TLS as a first-class carrier with port-443 reuse, subprotocol/extension negotiation, text/binary opcode distinction (client Masking is explicitly unnecessary — raw TCP direct connections do not have that threat model).
+- What the WS standard lacks that this protocol builds in: request/response, publish/subscribe, streaming, credit backpressure, disconnect recovery, and Stream ID multiplexing — in WS applications, all of these are hand-built.
+- Point-by-point evidence (protocol sections and code locations) is in [docs/websocket-comparison.md](docs/websocket-comparison.md); a wider protocol comparison (MQTT / RSocket / HTTP/1.1→HTTP/2→HTTP/3 with a summary table) is in [docs/tcp-and-landscape.md](docs/tcp-and-landscape.md).
 
-流控选型的对照（为什么是 credit 而不是滑动窗口或租约）：
+Flow-control design comparison (why credit, not a sliding window or leases):
 
-| 模型 | 代表 | 语义 | 复杂度 |
+| Model | Exemplars | Semantics | Complexity |
 | --- | --- | --- | --- |
-| 滑动窗口 | TCP / HTTP/2 | 按字节授权 | 高（字节级记账） |
-| credit 按条数 | 本协议、Reactive Streams `request(n)` | 授权 N 条，交付后归还 | 中 |
-| 租约按时间 | RSocket `LEASE` | 约束速率不约束在途量 | 低 |
+| Sliding window | TCP / HTTP/2 | Grants in bytes | High (byte-level accounting) |
+| Credit per message | This protocol, Reactive Streams `request(n)` | Grants N messages, returned on delivery | Medium |
+| Time-based lease | RSocket `LEASE` | Constrains rate, not in-flight volume | Low |
 
-滑动窗口按字节记账对 JSON 消息过度工程；LEASE 防的是滥用不是背压（RSocket 自己也靠订阅方 request(n) 做真流控）；按条计数恰好是业务方心智单位。
+Byte-level accounting is over-engineering for JSON messages; LEASE guards against abuse, not backpressure (RSocket itself relies on subscriber request(n) for real flow control); counting in messages matches the unit application developers think in.
 
-## 仓库布局与多语言规划
+## Repository Layout and Multi-Language Plans
 
-本仓库规划未来实现其他语言版本（Python/Rust/Java 等），布局按此定位：
+This repository plans to add implementations in other languages (Python/Rust/Java, among others); the layout is positioned accordingly:
 
-- **Go 实现保持仓库根**（`go.mod` 在根目录，Go 生态标准布局）。不会把 Go 代码挪进子目录——module path 变更会破坏所有现有 import。
-- **未来其他语言实现以平级子目录进入**（`python/`、`rust/`…），互不干扰。
-- **协调中枢是语言无关的协议规范**：[docs/protocol.md](docs/protocol.md) 是所有实现的单一事实源，任何语言的实现互通性以它为准；实现细节文档（DESIGN/NOTES 等）描述的是 Go 参考实现，不构成跨语言契约。
+- **The Go implementation stays at the repository root** (`go.mod` at the root, the standard Go ecosystem layout). The Go code will not move into a subdirectory — a module path change would break every existing import.
+- **Future implementations in other languages enter as sibling subdirectories** (`python/`, `rust/`, …), independent of one another.
+- **The coordination hub is the language-neutral protocol specification**: [docs/protocol.md](docs/protocol.md) is the single source of truth for all implementations, and interoperability of any implementation is judged against it; implementation-detail documents (DESIGN/NOTES, etc.) describe the Go reference implementation and do not constitute cross-language contracts.
